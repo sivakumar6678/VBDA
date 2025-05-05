@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FiSave, FiRefreshCw, FiMail, FiUser, FiSliders, FiFileText, FiClock, FiToggleRight } from 'react-icons/fi';
+import { useState, useEffect } from 'react';
+import { FiSave, FiRefreshCw, FiMail, FiUser, FiSliders, FiFileText, FiClock, FiToggleRight, FiTrash2, FiAlertCircle } from 'react-icons/fi';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
@@ -15,14 +15,15 @@ const SettingsPage = () => {
   const [maxFollowUps, setMaxFollowUps] = useState(2);
   const [templateName, setTemplateName] = useState('');
   const [templateContent, setTemplateContent] = useState('');
-
-  // Sample templates
-  const templates = [
+  const [templates, setTemplates] = useState([
     { id: 1, name: 'Initial Invitation', content: '<p>Dear {Recipient Name},</p><p>We are pleased to invite you to VBDA 2025...</p>' },
     { id: 2, name: 'Follow-up Reminder', content: '<p>Dear {Recipient Name},</p><p>We noticed you haven\'t responded to our invitation...</p>' },
     { id: 3, name: 'Event Details', content: '<p>Dear {Recipient Name},</p><p>Here are the details for the upcoming VBDA 2025 event...</p>' },
     { id: 4, name: 'Thank You', content: '<p>Dear {Recipient Name},</p><p>Thank you for confirming your attendance to VBDA 2025...</p>' },
-  ];
+  ]);
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
+  const [templateError, setTemplateError] = useState('');
+  const [isTemplateLoading, setIsTemplateLoading] = useState(false);
 
   // Rich text editor modules configuration
   const modules = {
@@ -36,22 +37,125 @@ const SettingsPage = () => {
     ],
   };
 
+  // Load templates and settings from localStorage on component mount
+  useEffect(() => {
+    try {
+      // Load templates
+      const savedTemplates = localStorage.getItem('emailTemplates');
+      if (savedTemplates) {
+        setTemplates(JSON.parse(savedTemplates));
+      }
+      
+      // Load email settings
+      const savedSettings = localStorage.getItem('emailSettings');
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        setSenderName(settings.senderName || 'VBDA 2025 Team');
+        setSenderEmail(settings.senderEmail || 'info@vbda2025.com');
+        setReplyToEmail(settings.replyToEmail || 'support@vbda2025.com');
+        setEmailSignature(settings.emailSignature || '<p>Best regards,<br>VBDA 2025 Team</p>');
+        setAiAssistEnabled(settings.aiAssistEnabled !== undefined ? settings.aiAssistEnabled : true);
+        setAutoFollowUpEnabled(settings.autoFollowUpEnabled !== undefined ? settings.autoFollowUpEnabled : true);
+        setFollowUpDelay(settings.followUpDelay || 3);
+        setMaxFollowUps(settings.maxFollowUps || 2);
+      }
+    } catch (err) {
+      console.error('Error loading data from localStorage:', err);
+    }
+  }, []);
+
   const handleSaveSettings = () => {
-    alert('Settings saved successfully!');
+    // Save email settings to localStorage
+    try {
+      const emailSettings = {
+        senderName,
+        senderEmail,
+        replyToEmail,
+        emailSignature,
+        aiAssistEnabled,
+        autoFollowUpEnabled,
+        followUpDelay,
+        maxFollowUps
+      };
+      localStorage.setItem('emailSettings', JSON.stringify(emailSettings));
+      alert('Settings saved successfully!');
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      alert('Failed to save settings. Please try again.');
+    }
   };
 
   const handleEditTemplate = (template) => {
+    setEditingTemplateId(template.id);
     setTemplateName(template.name);
     setTemplateContent(template.content);
   };
 
+  const handleDeleteTemplate = (templateId) => {
+    if (confirm('Are you sure you want to delete this template?')) {
+      try {
+        const updatedTemplates = templates.filter(template => template.id !== templateId);
+        setTemplates(updatedTemplates);
+        localStorage.setItem('emailTemplates', JSON.stringify(updatedTemplates));
+        
+        // If we're currently editing this template, reset the form
+        if (editingTemplateId === templateId) {
+          setEditingTemplateId(null);
+          setTemplateName('');
+          setTemplateContent('');
+        }
+      } catch (err) {
+        console.error('Error deleting template:', err);
+        setTemplateError('Failed to delete template. Please try again.');
+        setTimeout(() => setTemplateError(''), 3000);
+      }
+    }
+  };
+
   const handleSaveTemplate = () => {
-    if (templateName && templateContent) {
-      alert(`Template "${templateName}" saved successfully!`);
+    if (!templateName || !templateContent) {
+      setTemplateError('Please provide both template name and content.');
+      setTimeout(() => setTemplateError(''), 3000);
+      return;
+    }
+    
+    setIsTemplateLoading(true);
+    
+    try {
+      let updatedTemplates;
+      
+      if (editingTemplateId) {
+        // Update existing template
+        updatedTemplates = templates.map(template => 
+          template.id === editingTemplateId 
+            ? { ...template, name: templateName, content: templateContent }
+            : template
+        );
+      } else {
+        // Create new template
+        const newTemplate = {
+          id: Date.now(),
+          name: templateName,
+          content: templateContent
+        };
+        updatedTemplates = [...templates, newTemplate];
+      }
+      
+      setTemplates(updatedTemplates);
+      localStorage.setItem('emailTemplates', JSON.stringify(updatedTemplates));
+      
+      // Reset form
+      setEditingTemplateId(null);
       setTemplateName('');
       setTemplateContent('');
-    } else {
-      alert('Please provide both template name and content.');
+      
+      alert(`Template "${templateName}" saved successfully!`);
+    } catch (err) {
+      console.error('Error saving template:', err);
+      setTemplateError('Failed to save template. Please try again.');
+      setTimeout(() => setTemplateError(''), 3000);
+    } finally {
+      setIsTemplateLoading(false);
     }
   };
 
@@ -309,14 +413,32 @@ const SettingsPage = () => {
                         {templates.map((template) => (
                           <li 
                             key={template.id} 
-                            className="px-4 py-4 cursor-pointer hover:bg-gray-50 sm:px-6"
-                            onClick={() => handleEditTemplate(template)}
+                            className="px-4 py-4 hover:bg-gray-50 sm:px-6"
                           >
                             <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-blue-600 truncate">{template.name}</p>
-                              <button className="text-xs text-blue-600 hover:text-blue-800">
-                                Edit
-                              </button>
+                              <p 
+                                className="text-sm font-medium text-blue-600 truncate cursor-pointer"
+                                onClick={() => handleEditTemplate(template)}
+                              >
+                                {template.name}
+                              </p>
+                              <div className="flex space-x-2">
+                                <button 
+                                  className="text-xs text-blue-600 hover:text-blue-800"
+                                  onClick={() => handleEditTemplate(template)}
+                                >
+                                  Edit
+                                </button>
+                                <button 
+                                  className="text-xs text-red-600 hover:text-red-800"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTemplate(template.id);
+                                  }}
+                                >
+                                  <FiTrash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           </li>
                         ))}
@@ -372,13 +494,32 @@ const SettingsPage = () => {
                           />
                         </div>
                       </div>
-                      <div className="flex justify-end mt-6">
+                      {templateError && (
+                        <div className="mt-4 p-2 bg-red-50 text-red-700 rounded-md flex items-center">
+                          <FiAlertCircle className="w-4 h-4 mr-2" />
+                          {templateError}
+                        </div>
+                      )}
+                      <div className="flex justify-between mt-6">
+                        {editingTemplateId && (
+                          <button
+                            onClick={() => {
+                              setEditingTemplateId(null);
+                              setTemplateName('');
+                              setTemplateContent('');
+                            }}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        )}
                         <button
                           onClick={handleSaveTemplate}
-                          className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700"
+                          disabled={isTemplateLoading}
+                          className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
                         >
                           <FiSave className="w-4 h-4 mr-2" />
-                          Save Template
+                          {isTemplateLoading ? 'Saving...' : editingTemplateId ? 'Update Template' : 'Save Template'}
                         </button>
                       </div>
                     </div>

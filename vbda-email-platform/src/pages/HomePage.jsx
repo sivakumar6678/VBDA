@@ -117,7 +117,7 @@ const HomePage = () => {
               About VBDA 2025
             </h2>
             <p className="max-w-3xl mx-auto mt-4 text-xl text-blue-100">
-              The Virtual Business Development Association (VBDA) 2025 event brings together industry leaders, innovators, and entrepreneurs for a transformative experience.
+              The Viksit Bharat Dialogues & Awards (VBDA) 2025 event brings together industry leaders, innovators, and entrepreneurs for a transformative experience.
             </p>
             <div className="mt-8">
               <Link

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { FiSend, FiClock, FiSave } from 'react-icons/fi';
+import { FiSend, FiClock, FiSave, FiAlertCircle } from 'react-icons/fi';
 
 const ComposePage = () => {
   const [emailContent, setEmailContent] = useState('');
@@ -11,6 +11,9 @@ const ComposePage = () => {
   const [scheduledTime, setScheduledTime] = useState('');
   const [useAI, setUseAI] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
+  const [drafts, setDrafts] = useState([]);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Sample templates
   const templates = [
@@ -66,6 +69,51 @@ const ComposePage = () => {
 
   const togglePreview = () => {
     setShowPreview(!showPreview);
+  };
+  
+  // Load drafts from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedDrafts = localStorage.getItem('emailDrafts');
+      if (savedDrafts) {
+        setDrafts(JSON.parse(savedDrafts));
+      }
+    } catch (err) {
+      console.error('Error loading drafts:', err);
+    }
+  }, []);
+  
+  // Save draft function
+  const saveDraft = () => {
+    if (!subject && !emailContent) {
+      setError('Cannot save an empty draft. Please add a subject or content.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const newDraft = {
+        id: Date.now(),
+        subject: subject || 'No Subject',
+        content: emailContent,
+        recipientType,
+        createdAt: new Date().toISOString(),
+      };
+      
+      const updatedDrafts = [...drafts, newDraft];
+      setDrafts(updatedDrafts);
+      localStorage.setItem('emailDrafts', JSON.stringify(updatedDrafts));
+      
+      alert('Draft saved successfully!');
+    } catch (err) {
+      console.error('Error saving draft:', err);
+      setError('Failed to save draft. Please try again.');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -296,11 +344,19 @@ const ComposePage = () => {
 
       {/* Save Draft Button */}
       <div className="flex justify-end">
+        {error && (
+          <div className="mr-4 text-sm text-red-600 flex items-center">
+            <FiAlertCircle className="w-4 h-4 mr-1" />
+            {error}
+          </div>
+        )}
         <button
-          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+          onClick={saveDraft}
+          disabled={isLoading}
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <FiSave className="w-4 h-4 mr-2" />
-          Save as Draft
+          {isLoading ? 'Saving...' : 'Save as Draft'}
         </button>
       </div>
     </div>
